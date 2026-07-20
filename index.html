@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Monatsübersicht</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f4f0; color: #2b2926; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; }
+  .sub { color: #8a8479; font-size: 13.5px; margin-bottom: 24px; }
+  .titlebar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .titlebar .name { font-size: 14px; color: #8a8479; font-weight: 500; white-space: nowrap; }
+  .card { background: #fff; border: 1px solid #e8e5df; border-radius: 14px; padding: 20px; margin-bottom: 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; }
+  .badge { font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+  .badge.income { background: #e5f4ea; color: #227a4e; }
+  .badge.expense { background: #fbe9e7; color: #c14a3a; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .row input[type=text] { flex: 1; padding: 9px 10px; border: 1px solid #e0ddd6; border-radius: 8px; font-size: 14px; }
+  .row input[type=number] { width: 110px; padding: 9px 10px; border: 1px solid #e0ddd6; border-radius: 8px; font-size: 14px; text-align: right; }
+  .row button.del { background: none; border: none; color: #b8b3a8; font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+  .row button.del:hover { color: #c14a3a; }
+  .addrow { display: flex; gap: 8px; margin-top: 10px; }
+  .addrow input[type=text] { flex: 1; padding: 9px 10px; border: 1px dashed #d5d1c7; border-radius: 8px; font-size: 14px; }
+  .addrow input[type=number] { width: 110px; padding: 9px 10px; border: 1px dashed #d5d1c7; border-radius: 8px; font-size: 14px; text-align: right; }
+  .addrow button { background: #2b2926; color: #fff; border: none; border-radius: 8px; padding: 0 16px; font-size: 14px; cursor: pointer; }
+  .subtotal { text-align: right; font-size: 14px; color: #6b665c; margin-top: 10px; padding-top: 10px; border-top: 1px solid #efece5; }
+  .subtotal b { color: #2b2926; }
+  .result { background: #2b2926; color: #fff; border-radius: 14px; padding: 24px 20px; text-align: center; }
+  .result .label { font-size: 13px; color: #b8b3a8; margin-bottom: 6px; letter-spacing: .02em; text-transform: uppercase; }
+  .result .value { font-size: 34px; font-weight: 700; }
+  .result .value.neg { color: #ff8a75; }
+  .result .value.pos { color: #7ee0a5; }
+  .result .hint { font-size: 12.5px; color: #8a8479; margin-top: 8px; }
+  .savebar { text-align: center; margin-top: 14px; font-size: 12.5px; color: #a29c8f; min-height: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="titlebar">
+    <h1>Monatsübersicht</h1>
+    <div class="name">Florian Noll</div>
+  </div>
+  <div class="sub">Alle Einnahmen und Ausgaben an einem Ort – mit automatischem Endergebnis.</div>
+
+  <div class="card">
+    <h2>Einnahmen <span class="badge income">Einnahmen</span></h2>
+    <div id="income-rows"></div>
+    <div class="addrow">
+      <input type="text" id="income-new-name" placeholder="Neue Position…">
+      <input type="number" id="income-new-amount" placeholder="0,00">
+      <button onclick="addItem('income')">+</button>
+    </div>
+    <div class="subtotal">Zwischensumme: <b id="income-total">0,00 €</b></div>
+  </div>
+
+  <div class="card">
+    <h2>Ausgaben <span class="badge expense">Ausgaben</span></h2>
+    <div id="expense-rows"></div>
+    <div class="addrow">
+      <input type="text" id="expense-new-name" placeholder="Neue Position…">
+      <input type="number" id="expense-new-amount" placeholder="0,00">
+      <button onclick="addItem('expense')">+</button>
+    </div>
+    <div class="subtotal">Zwischensumme: <b id="expense-total">0,00 €</b></div>
+  </div>
+
+  <div class="result">
+    <div class="label">Endergebnis</div>
+    <div class="value" id="final-result">0,00 €</div>
+    <div class="hint" id="final-hint"></div>
+  </div>
+  <div class="savebar" id="savebar"></div>
+</div>
+
+<script>
+let state = {
+  income: [
+    { id: uid(), name: "Gehalt", amount: "" }
+  ],
+  expenses: [
+    { id: uid(), name: "Miete", amount: "" },
+    { id: uid(), name: "Lebensmittel", amount: "" },
+    { id: uid(), name: "Versicherungen", amount: "" },
+    { id: uid(), name: "Transport", amount: "" }
+  ]
+};
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+function fmt(n) {
+  return n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+function parseAmount(v) {
+  return parseFloat((v || "").toString().replace(",", ".")) || 0;
+}
+
+function sum(items) {
+  return items.reduce((s, it) => s + parseAmount(it.amount), 0);
+}
+
+function render() {
+  renderSection('income');
+  renderSection('expense');
+  const totalIncome = sum(state.income);
+  const totalExpenses = sum(state.expenses);
+  const result = totalIncome - totalExpenses;
+
+  document.getElementById('income-total').textContent = fmt(totalIncome);
+  document.getElementById('expense-total').textContent = fmt(totalExpenses);
+
+  const resultEl = document.getElementById('final-result');
+  resultEl.textContent = (result >= 0 ? "+" : "") + fmt(result);
+  resultEl.className = "value " + (result >= 0 ? "pos" : "neg");
+  document.getElementById('final-hint').textContent =
+    fmt(totalIncome) + " Einnahmen − " + fmt(totalExpenses) + " Ausgaben";
+}
+
+function renderSection(type) {
+  const key = type === 'income' ? 'income' : 'expenses';
+  const container = document.getElementById(type + '-rows');
+  container.innerHTML = '';
+  state[key].forEach(it => {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = it.name;
+    nameInput.oninput = (e) => { it.name = e.target.value; scheduleSave(); };
+
+    const amountInput = document.createElement('input');
+    amountInput.type = 'number';
+    amountInput.placeholder = '0,00';
+    amountInput.value = it.amount;
+    amountInput.oninput = (e) => { it.amount = e.target.value; render(); scheduleSave(); };
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'del';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Entfernen';
+    delBtn.onclick = () => {
+      state[key] = state[key].filter(x => x.id !== it.id);
+      render();
+      scheduleSave();
+    };
+
+    row.appendChild(nameInput);
+    row.appendChild(amountInput);
+    row.appendChild(delBtn);
+    container.appendChild(row);
+  });
+}
+
+function addItem(type) {
+  const key = type === 'income' ? 'income' : 'expenses';
+  const nameEl = document.getElementById(type + '-new-name');
+  const amountEl = document.getElementById(type + '-new-amount');
+  const name = nameEl.value.trim();
+  if (!name) return;
+  state[key].push({ id: uid(), name: name, amount: amountEl.value });
+  nameEl.value = '';
+  amountEl.value = '';
+  render();
+  scheduleSave();
+}
+
+let saveTimer = null;
+function scheduleSave() {
+  const bar = document.getElementById('savebar');
+  bar.textContent = 'Speichern…';
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await window.storage.set('budget-daten', JSON.stringify(state));
+      bar.textContent = 'Gespeichert';
+    } catch (e) {
+      bar.textContent = 'Speichern fehlgeschlagen (Daten bleiben in dieser Sitzung erhalten)';
+    }
+  }, 500);
+}
+
+async function load() {
+  try {
+    const res = await window.storage.get('budget-daten');
+    if (res && res.value) {
+      const data = JSON.parse(res.value);
+      if (data.income) state.income = data.income;
+      if (data.expenses) state.expenses = data.expenses;
+    }
+  } catch (e) {
+    // kein gespeicherter Stand vorhanden – Standardwerte bleiben
+  }
+  render();
+}
+
+load();
+</script>
+</body>
+</html>
