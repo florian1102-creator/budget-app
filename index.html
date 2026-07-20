@@ -171,26 +171,27 @@ function scheduleSave() {
   const bar = document.getElementById('savebar');
   bar.textContent = 'Speichern…';
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
+  saveTimer = setTimeout(() => {
     try {
-      await window.storage.set('budget-daten', JSON.stringify(state));
-      bar.textContent = 'Gespeichert';
+      localStorage.setItem('budget-daten', JSON.stringify(state));
+      bar.textContent = 'Gespeichert ✓';
+      setTimeout(() => { bar.textContent = ''; }, 2000);
     } catch (e) {
-      bar.textContent = 'Speichern fehlgeschlagen (Daten bleiben in dieser Sitzung erhalten)';
+      bar.textContent = '❌ Speichern fehlgeschlagen';
     }
   }, 500);
 }
 
-async function load() {
+function load() {
   try {
-    const res = await window.storage.get('budget-daten');
-    if (res && res.value) {
-      const data = JSON.parse(res.value);
+    const saved = localStorage.getItem('budget-daten');
+    if (saved) {
+      const data = JSON.parse(saved);
       if (data.income) state.income = data.income;
       if (data.expenses) state.expenses = data.expenses;
     }
   } catch (e) {
-    // kein gespeicherter Stand vorhanden – Standardwerte bleiben
+    console.error('Fehler beim Laden:', e);
   }
   render();
 }
