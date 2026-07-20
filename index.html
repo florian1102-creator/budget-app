@@ -9,8 +9,6 @@
   .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; }
   h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; }
   .sub { color: #8a8479; font-size: 13.5px; margin-bottom: 24px; }
-  .titlebar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-  .titlebar .name { font-size: 14px; color: #8a8479; font-weight: 500; white-space: nowrap; }
   .card { background: #fff; border: 1px solid #e8e5df; border-radius: 14px; padding: 20px; margin-bottom: 18px; }
   .card h2 { font-size: 15px; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; }
   .badge { font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
@@ -38,10 +36,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="titlebar">
-    <h1>Monatsübersicht</h1>
-    <div class="name">Florian Noll</div>
-  </div>
+  <h1>Monatsübersicht</h1>
   <div class="sub">Alle Einnahmen und Ausgaben an einem Ort – mit automatischem Endergebnis.</div>
 
   <div class="card">
@@ -101,9 +96,7 @@ function sum(items) {
   return items.reduce((s, it) => s + parseAmount(it.amount), 0);
 }
 
-function render() {
-  renderSection('income');
-  renderSection('expense');
+function updateTotals() {
   const totalIncome = sum(state.income);
   const totalExpenses = sum(state.expenses);
   const result = totalIncome - totalExpenses;
@@ -116,6 +109,12 @@ function render() {
   resultEl.className = "value " + (result >= 0 ? "pos" : "neg");
   document.getElementById('final-hint').textContent =
     fmt(totalIncome) + " Einnahmen − " + fmt(totalExpenses) + " Ausgaben";
+}
+
+function render() {
+  renderSection('income');
+  renderSection('expense');
+  updateTotals();
 }
 
 function renderSection(type) {
@@ -135,7 +134,7 @@ function renderSection(type) {
     amountInput.type = 'number';
     amountInput.placeholder = '0,00';
     amountInput.value = it.amount;
-    amountInput.oninput = (e) => { it.amount = e.target.value; render(); scheduleSave(); };
+    amountInput.oninput = (e) => { it.amount = e.target.value; updateTotals(); scheduleSave(); };
 
     const delBtn = document.createElement('button');
     delBtn.className = 'del';
