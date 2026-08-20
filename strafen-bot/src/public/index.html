@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strafenkasse – TSV Karpfham</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f4f0; color: #2b2926; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; }
+  .sub { color: #8a8479; font-size: 13.5px; margin-bottom: 20px; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 24px; padding: 10px 14px; border-radius: 10px; background: #fff; border: 1px solid #e8e5df; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #b8b3a8; flex: none; }
+  .dot.connected { background: #34a866; }
+  .dot.qr { background: #e0a63c; }
+  .dot.disconnected, .dot.starting { background: #c14a3a; }
+  .status a { color: #2b2926; }
+  .card { background: #fff; border: 1px solid #e8e5df; border-radius: 14px; padding: 20px; margin-bottom: 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; }
+  .badge { font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: #fbe9e7; color: #c14a3a; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #efece5; }
+  th { color: #8a8479; font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .02em; }
+  td.amount, th.amount { text-align: right; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  input, select { padding: 8px 10px; border: 1px solid #e0ddd6; border-radius: 8px; font-size: 14px; font-family: inherit; }
+  .addrow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .addrow input { flex: 1; min-width: 100px; }
+  .addrow input.amount { width: 100px; flex: none; }
+  .addrow button, .btn { background: #2b2926; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
+  .btn.secondary { background: none; color: #6b665c; border: 1px solid #e0ddd6; }
+  .btn.danger { background: none; color: #c14a3a; border: 1px solid #f0d3ce; }
+  .btn.small { padding: 5px 10px; font-size: 12.5px; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .result { background: #2b2926; color: #fff; border-radius: 14px; padding: 24px 20px; text-align: center; margin-bottom: 18px; }
+  .result .label { font-size: 13px; color: #b8b3a8; margin-bottom: 6px; letter-spacing: .02em; text-transform: uppercase; }
+  .result .value { font-size: 34px; font-weight: 700; }
+  .empty { color: #a29c8f; font-size: 13.5px; padding: 6px 0; }
+  .reason { color: #8a8479; }
+  .qr-box { text-align: center; padding: 10px 0; }
+  .qr-box img { width: 220px; height: 220px; border: 1px solid #e8e5df; border-radius: 10px; }
+  .review-item { border: 1px solid #f0e6c8; background: #fdf8ec; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .review-item .meta { font-size: 12.5px; color: #8a8479; margin-bottom: 6px; }
+  .review-item .text { font-size: 14px; margin-bottom: 10px; }
+  .review-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .review-form input.amount { width: 90px; }
+  .review-form input.reason { flex: 1; min-width: 120px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Strafenkasse – TSV Karpfham</h1>
+  <div class="sub">Automatisch aus der WhatsApp-Strafgruppe zusammengetragen.</div>
+
+  <div class="status" id="status">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">Lade Status…</span>
+  </div>
+
+  <div class="qr-box card" id="qr-card" style="display:none;">
+    <h2>WhatsApp koppeln</h2>
+    <p style="font-size:13.5px;color:#6b665c;">Mit der Kamera-App oder unter WhatsApp → Verknüpfte Geräte scannen.</p>
+    <img id="qr-img" alt="QR-Code">
+  </div>
+
+  <div class="result">
+    <div class="label">Gesamtsumme</div>
+    <div class="value" id="grand-total">0,00 €</div>
+  </div>
+
+  <div class="card">
+    <h2>Nach Person <span class="badge" id="summary-count">0</span></h2>
+    <table id="summary-table">
+      <thead><tr><th>Name</th><th class="amount">Summe</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="summary-empty" style="display:none;">Noch keine Strafen erfasst.</div>
+  </div>
+
+  <div class="card" id="review-card" style="display:none;">
+    <h2>Zu prüfen <span class="badge" id="review-count">0</span></h2>
+    <p style="font-size:13px;color:#8a8479;margin-top:-6px;">Nachrichten aus der Gruppe, in denen kein Betrag erkannt wurde – bitte manuell zuordnen oder verwerfen.</p>
+    <div id="review-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>Alle Einträge <span class="badge" id="log-count">0</span></h2>
+    <table id="log-table">
+      <thead><tr><th>Datum</th><th>Name</th><th>Grund</th><th class="amount">Betrag</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="log-empty" style="display:none;">Noch keine Einträge.</div>
+
+    <div class="addrow">
+      <input type="text" id="new-name" placeholder="Name">
+      <input type="text" id="new-reason" placeholder="Grund (optional)">
+      <input type="number" id="new-amount" class="amount" placeholder="0,00">
+      <button onclick="addFine()">+ Hinzufügen</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Bereits vorhandene Nachrichten importieren</h2>
+    <p style="font-size:13px;color:#8a8479;margin-top:-6px;">
+      Für Strafen, die schon vor dem Koppeln in der Gruppe standen: WhatsApp →
+      Gruppe → Mehr → Chat exportieren → <b>Ohne Medien</b>, Textdatei öffnen,
+      Inhalt hier einfügen. Bereits importierte Nachrichten werden beim
+      erneuten Einfügen automatisch übersprungen (keine doppelte Zählung).
+    </p>
+    <textarea id="import-text" rows="6" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border:1px solid #e0ddd6;border-radius:8px;" placeholder="24.08.23, 18:32 - Max Mustermann: 5€ zu spät"></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+      <button class="btn" onclick="importExport()">Importieren</button>
+      <span id="import-result" style="font-size:13px;color:#6b665c;"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Export</h2>
+    <a class="btn secondary" href="/export.csv">CSV herunterladen</a>
+  </div>
+</div>
+
+<script>
+function fmt(n) {
+  return Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString('de-DE');
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.status === 204 ? null : res.json();
+}
+
+async function loadStatus() {
+  const s = await api('/api/status');
+  const dot = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  const qrCard = document.getElementById('qr-card');
+  dot.className = 'dot ' + s.status;
+
+  if (s.status === 'connected') {
+    text.textContent = 'Verbunden – Gruppe: ' + (s.groupName || '(nicht konfiguriert)');
+    qrCard.style.display = 'none';
+  } else if (s.status === 'qr') {
+    text.textContent = 'Bitte QR-Code scannen, um WhatsApp zu koppeln.';
+    qrCard.style.display = 'block';
+    document.getElementById('qr-img').src = '/qr?_=' + Date.now();
+  } else {
+    text.textContent = s.status === 'starting' ? 'Starte…' : 'Getrennt – versuche erneut zu verbinden…';
+    qrCard.style.display = 'none';
+  }
+}
+
+async function loadSummary() {
+  const { summary, grandTotal } = await api('/api/summary');
+  document.getElementById('grand-total').textContent = fmt(grandTotal);
+  document.getElementById('summary-count').textContent = summary.length;
+  const tbody = document.querySelector('#summary-table tbody');
+  tbody.innerHTML = '';
+  document.getElementById('summary-empty').style.display = summary.length ? 'none' : 'block';
+  summary.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(row.name)}</td><td class="amount">${fmt(row.total)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadFines() {
+  const fines = await api('/api/fines');
+  document.getElementById('log-count').textContent = fines.length;
+  const tbody = document.querySelector('#log-table tbody');
+  tbody.innerHTML = '';
+  document.getElementById('log-empty').style.display = fines.length ? 'none' : 'block';
+  fines.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(f.timestamp)}</td>
+      <td>${escapeHtml(f.name)}</td>
+      <td class="reason">${escapeHtml(f.reason || '')}</td>
+      <td class="amount">${fmt(f.amount)}</td>
+      <td><div class="row-actions"><button class="btn small danger" onclick="deleteFine('${f.id}')">Löschen</button></div></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadUnparsed() {
+  const items = await api('/api/unparsed');
+  const card = document.getElementById('review-card');
+  const list = document.getElementById('review-list');
+  document.getElementById('review-count').textContent = items.length;
+  card.style.display = items.length ? 'block' : 'none';
+  list.innerHTML = '';
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'review-item';
+    div.innerHTML = `
+      <div class="meta">${fmtDate(item.timestamp)} · ${escapeHtml(item.name)}</div>
+      <div class="text">${escapeHtml(item.text)}</div>
+      <div class="review-form">
+        <input type="number" class="amount" placeholder="Betrag €" id="amt-${item.id}">
+        <input type="text" class="reason" placeholder="Grund (optional)" id="reason-${item.id}">
+        <button class="btn small" onclick="acceptUnparsed('${item.id}')">Als Strafe übernehmen</button>
+        <button class="btn small secondary" onclick="dismissUnparsed('${item.id}')">Verwerfen</button>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+async function refreshAll() {
+  await Promise.all([loadStatus(), loadSummary(), loadFines(), loadUnparsed()]);
+}
+
+async function addFine() {
+  const name = document.getElementById('new-name').value.trim();
+  const amount = document.getElementById('new-amount').value;
+  const reason = document.getElementById('new-reason').value.trim();
+  if (!name || !amount) return;
+  await api('/api/fines', { method: 'POST', body: JSON.stringify({ name, amount, reason }) });
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-amount').value = '';
+  document.getElementById('new-reason').value = '';
+  refreshAll();
+}
+
+async function deleteFine(id) {
+  if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+  await api('/api/fines/' + encodeURIComponent(id), { method: 'DELETE' });
+  refreshAll();
+}
+
+async function acceptUnparsed(id) {
+  const amount = document.getElementById('amt-' + id).value;
+  const reason = document.getElementById('reason-' + id).value.trim();
+  if (!amount) { alert('Bitte einen Betrag eingeben.'); return; }
+  await api(`/api/unparsed/${encodeURIComponent(id)}/accept`, { method: 'POST', body: JSON.stringify({ amount, reason }) });
+  refreshAll();
+}
+
+async function dismissUnparsed(id) {
+  await api(`/api/unparsed/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
+  refreshAll();
+}
+
+async function importExport() {
+  const textEl = document.getElementById('import-text');
+  const resultEl = document.getElementById('import-result');
+  const text = textEl.value;
+  if (!text.trim()) return;
+  resultEl.textContent = 'Importiere…';
+  try {
+    const r = await api('/api/import', { method: 'POST', body: JSON.stringify({ text }) });
+    resultEl.textContent = `${r.messagesFound} Nachrichten gefunden, ${r.added} neue Strafen, ${r.unparsed} zu prüfen.`;
+    textEl.value = '';
+    refreshAll();
+  } catch (e) {
+    resultEl.textContent = 'Fehler beim Import.';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+refreshAll();
+setInterval(refreshAll, 8000);
+</script>
+</body>
+</html>
