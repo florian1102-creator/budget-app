@@ -1,0 +1,8 @@
+node_modules/
+.env
+
+# WhatsApp-Kopplungsdaten (Login-Session, geheim!)
+auth/
+
+# Laufzeit-Daten (Strafen, Mitglieder, ...) bleiben lokal auf dem Server
+data/*.json
