@@ -101,6 +101,21 @@
   </div>
 
   <div class="card">
+    <h2>Bereits vorhandene Nachrichten importieren</h2>
+    <p style="font-size:13px;color:#8a8479;margin-top:-6px;">
+      Für Strafen, die schon vor dem Koppeln in der Gruppe standen: WhatsApp →
+      Gruppe → Mehr → Chat exportieren → <b>Ohne Medien</b>, Textdatei öffnen,
+      Inhalt hier einfügen. Bereits importierte Nachrichten werden beim
+      erneuten Einfügen automatisch übersprungen (keine doppelte Zählung).
+    </p>
+    <textarea id="import-text" rows="6" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border:1px solid #e0ddd6;border-radius:8px;" placeholder="24.08.23, 18:32 - Max Mustermann: 5€ zu spät"></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+      <button class="btn" onclick="importExport()">Importieren</button>
+      <span id="import-result" style="font-size:13px;color:#6b665c;"></span>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Export</h2>
     <a class="btn secondary" href="/export.csv">CSV herunterladen</a>
   </div>
@@ -233,6 +248,22 @@ async function acceptUnparsed(id) {
 async function dismissUnparsed(id) {
   await api(`/api/unparsed/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
   refreshAll();
+}
+
+async function importExport() {
+  const textEl = document.getElementById('import-text');
+  const resultEl = document.getElementById('import-result');
+  const text = textEl.value;
+  if (!text.trim()) return;
+  resultEl.textContent = 'Importiere…';
+  try {
+    const r = await api('/api/import', { method: 'POST', body: JSON.stringify({ text }) });
+    resultEl.textContent = `${r.messagesFound} Nachrichten gefunden, ${r.added} neue Strafen, ${r.unparsed} zu prüfen.`;
+    textEl.value = '';
+    refreshAll();
+  } catch (e) {
+    resultEl.textContent = 'Fehler beim Import.';
+  }
 }
 
 function escapeHtml(s) {

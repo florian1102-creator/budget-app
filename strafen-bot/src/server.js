@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { store } from './store.js';
 import { getStatus } from './whatsapp.js';
+import { importExport } from './importer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -136,6 +137,16 @@ export function createServer() {
     store.saveFines(fines);
     store.saveUnparsed(unparsed.filter((u) => u.id !== item.id));
     res.status(201).json({ ok: true });
+  });
+
+  // Einmaliger Import eines von WhatsApp exportierten Chatverlaufs (Gruppe →
+  // Mehr → Chat exportieren → ohne Medien), fuer bereits vorhandene Strafen,
+  // die der automatische Verlaufs-Sync beim Koppeln nicht erfasst hat.
+  app.post('/api/import', (req, res) => {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'text ist erforderlich' });
+    const result = importExport(text);
+    res.json(result);
   });
 
   app.get('/api/members', (req, res) => {

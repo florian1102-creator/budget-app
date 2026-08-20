@@ -61,12 +61,34 @@ Die Kopplung bleibt im Ordner `auth/` gespeichert, ein Neustart des Bots
 erfordert keinen erneuten QR-Scan (bis der Account manuell "Verknüpfte
 Geräte" trennt oder ausgeloggt wird).
 
+## Bereits vorhandene Strafen in der Gruppe erfassen
+
+Zwei Wege, damit auch Beträge erfasst werden, die schon vor dem Koppeln in
+der Gruppe standen:
+
+1. **Automatischer Verlaufs-Sync (meist ausreichend):** Beim ersten Koppeln
+   schickt das Haupt-Handy je nach der beim Verknüpfen gewählten Option
+   ("Kein/3 Monate/1 Jahr/Alle Chats einbeziehen") einen Teil des
+   Chatverlaufs an den Bot. Dieser wird automatisch genauso ausgewertet wie
+   neue Nachrichten – ohne zusätzlichen Schritt.
+2. **Manueller Import (falls der Sync nicht weit genug zurückreicht):** Im
+   Dashboard unter **"Bereits vorhandene Nachrichten importieren"** den
+   Inhalt einer WhatsApp-Chat-Export-Datei einfügen (Gruppe → Mehr → Chat
+   exportieren → *Ohne Medien*). Wird derselbe Text mehrfach importiert,
+   werden bereits erfasste Nachrichten automatisch übersprungen – es kommt
+   nicht zu doppelter Zählung.
+
 ## Wie die Strafen erkannt werden
 
 Der Parser (`src/parser.js`) sucht in jeder Nachricht nach Euro-Beträgen in
-gängigen Schreibweisen: `5€`, `5 €`, `5,50€`, `5 Euro`, `€5`, `5,-` usw. Der
-restliche Text der Nachricht wird als Grund übernommen. Da die Mannschaft
-kein einheitliches Format nutzt, wird das nicht immer perfekt sitzen:
+gängigen Schreibweisen: `5€`, `5 €`, `5,50€`, `5 Euro`, `€5`, `5,-` usw.
+Enthält eine Nachricht kein Währungszeichen, wird zusätzlich eine **nackte
+Zahl am Anfang** der Nachricht als Betrag erkannt (z. B. `5` oder
+`5 zu spät`, laut Rückmeldung aus der Mannschaft der häufigste Fall) – aber
+nur, wenn die Zahl das erste Wort der Nachricht ist, um Zahlen mitten im
+Fließtext nicht fälschlich zu erfassen. Der restliche Text der Nachricht
+wird als Grund übernommen. Da die Mannschaft kein einheitliches Format
+nutzt, wird das nicht immer perfekt sitzen:
 
 - Nachrichten **ohne erkennbaren Betrag** landen im Dashboard unter
   **"Zu prüfen"** – dort lassen sie sich manuell mit Betrag/Grund einer

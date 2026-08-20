@@ -4,8 +4,22 @@
 const AMOUNT_REGEX =
   /(?:€\s*(\d{1,4}(?:[.,]\d{1,2})?))|(?:(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b))|(?:(\d{1,4})\s*,-)/gi;
 
+// Fallback fuer Nachrichten, die nur aus einer nackten Zahl bestehen (ohne
+// €-Zeichen), z.B. "5" oder "5 zu spaet" -- laut Rueckmeldung aus der Gruppe
+// der haeufigste Fall. Nur am Anfang der Nachricht, um Zahlen mitten im
+// Fliesstext (Datumsangaben etc.) nicht faelschlich zu erfassen.
+const BARE_NUMBER_REGEX = /^(?:strafe:?\s*)?(\d{1,3}(?:[.,]\d{1,2})?)(?=\s|$)/i;
+
 function toAmount(raw) {
   return parseFloat(raw.replace(',', '.'));
+}
+
+function cleanReason(segment) {
+  return segment
+    .replace(/^[\s,+\-;/•·]+/, '')
+    .replace(/[\s,+\-;/•·]+$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 // Liefert alle im Text gefundenen Betraege inkl. eines heuristisch
@@ -15,9 +29,8 @@ export function extractFines(text) {
   if (!text) return { amounts: [], hasMatch: false };
 
   const matches = [...text.matchAll(AMOUNT_REGEX)];
-  if (matches.length === 0) return { amounts: [], hasMatch: false };
-
   const amounts = [];
+
   for (let i = 0; i < matches.length; i++) {
     const m = matches[i];
     const raw = m[1] || m[2] || m[3];
@@ -33,16 +46,22 @@ export function extractFines(text) {
     const matchEnd = m.index + m[0].length;
     const nextStart = i === matches.length - 1 ? text.length : matches[i + 1].index;
     const prefix = i === 0 ? text.slice(0, m.index) : '';
-    let segment = prefix + ' ' + text.slice(matchEnd, nextStart);
+    const segment = prefix + ' ' + text.slice(matchEnd, nextStart);
 
-    const reason = segment
-      .replace(/^[\s,+\-;/•·]+/, '')
-      .replace(/[\s,+\-;/•·]+$/, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-
-    amounts.push({ amount, reason: reason || null });
+    amounts.push({ amount, reason: cleanReason(segment) || null });
   }
 
-  return { amounts, hasMatch: amounts.length > 0 };
+  if (amounts.length > 0) return { amounts, hasMatch: true };
+
+  const trimmed = text.trim();
+  const bare = trimmed.match(BARE_NUMBER_REGEX);
+  if (bare) {
+    const amount = toAmount(bare[1]);
+    if (amount > 0 && amount <= 1000) {
+      const reason = cleanReason(trimmed.slice(bare[0].length));
+      return { amounts: [{ amount, reason: reason || null }], hasMatch: true };
+    }
+  }
+
+  return { amounts: [], hasMatch: false };
 }

@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import pino from 'pino';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { extractFines } from './parser.js';
+import { recordParsedMessage } from './recorder.js';
 import { store } from './store.js';
 
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileysPkg;
@@ -25,6 +25,13 @@ export function getStatus() {
 export async function startWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
+
+  // WhatsApp schickt beim Koppeln eines neuen Geraets je nach Einstellung des
+  // Haupt-Handys ("Chatverlauf einbeziehen") einen Teil der bisherigen
+  // Nachrichten nach. Falls diese vor der Gruppenerkennung eintreffen,
+  // zwischenspeichern und nachtraeglich verarbeiten.
+  let groupResolved = !!resolvedGroupJid;
+  let pendingHistory = [];
 
   const sock = makeWASocket({
     version,
@@ -50,6 +57,12 @@ export async function startWhatsApp() {
       latestQr = null;
       console.log('WhatsApp verbunden.');
       await resolveTargetGroup(sock);
+      groupResolved = true;
+      if (pendingHistory.length) {
+        const backlog = pendingHistory;
+        pendingHistory = [];
+        await processHistoryBacklog(backlog);
+      }
     }
 
     if (connection === 'close') {
@@ -68,9 +81,31 @@ export async function startWhatsApp() {
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
     for (const msg of messages) {
-      await handleIncomingMessage(msg);
+      await handleIncomingMessage(msg, { fromHistory: false });
     }
   });
+
+  // Liefert vom verknuepften Handy synchronisierten Chatverlauf (Umfang
+  // haengt von der beim Koppeln gewaehlten Option ab). Damit werden bereits
+  // in der Gruppe vorhandene Strafen automatisch erfasst, ohne dass jemand
+  // manuell exportieren muss.
+  sock.ev.on('messaging-history.set', async ({ messages }) => {
+    if (!messages || !messages.length) return;
+    if (!groupResolved) {
+      pendingHistory.push(...messages);
+      return;
+    }
+    await processHistoryBacklog(messages);
+  });
+
+  async function processHistoryBacklog(messages) {
+    const relevant = resolvedGroupJid ? messages.filter((m) => m.key?.remoteJid === resolvedGroupJid) : [];
+    if (!relevant.length) return;
+    console.log(`Chatverlauf-Sync: ${relevant.length} Nachricht(en) aus der Zielgruppe gefunden, verarbeite...`);
+    for (const msg of relevant) {
+      await handleIncomingMessage(msg, { fromHistory: true });
+    }
+  }
 
   return sock;
 }
@@ -120,7 +155,7 @@ function logAvailableGroups(list) {
 // Datenschutz-Kernstueck: Der gekoppelte Account sieht technisch alle Chats,
 // aber alles ausserhalb der konfigurierten Zielgruppe wird hier sofort
 // verworfen -- es wird nichts davon gespeichert oder geloggt.
-async function handleIncomingMessage(msg) {
+async function handleIncomingMessage(msg, { fromHistory }) {
   if (!resolvedGroupJid || msg.key.remoteJid !== resolvedGroupJid) return;
   if (msg.key.fromMe) return;
 
@@ -137,29 +172,14 @@ async function handleIncomingMessage(msg) {
   const phone = senderJid.split('@')[0];
   const members = store.getMembers();
   const senderName = members[phone] || msg.pushName || phone;
-
-  const { amounts, hasMatch } = extractFines(text);
   const timestamp = (Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)) * 1000;
 
-  if (!hasMatch) {
-    const unparsed = store.getUnparsed();
-    unparsed.push({ id: msg.key.id, phone, name: senderName, text, timestamp });
-    store.saveUnparsed(unparsed.slice(-500));
-    return;
-  }
-
-  const fines = store.getFines();
-  amounts.forEach((a, idx) => {
-    fines.push({
-      id: `${msg.key.id}-${idx}`,
-      phone,
-      name: senderName,
-      amount: a.amount,
-      reason: a.reason,
-      text,
-      timestamp,
-      source: 'auto',
-    });
+  recordParsedMessage({
+    id: msg.key.id,
+    phone,
+    name: senderName,
+    text,
+    timestamp,
+    source: fromHistory ? 'history' : 'auto',
   });
-  store.saveFines(fines);
 }
