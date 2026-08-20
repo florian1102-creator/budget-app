@@ -43,7 +43,7 @@ an einen echten WhatsApp-Account (Bibliothek: [Baileys](https://github.com/Whisk
    cp .env.example .env
    ```
    - `DASHBOARD_PASSWORD` unbedingt setzen (Strafen sind personenbezogene Daten).
-   - `TARGET_GROUP_NAME` auf einen Teil des Gruppennamens setzen (z. B. `Strafgruppe`).
+   - `TARGET_GROUP_NAME` ist bereits auf `Strafen TSV` voreingestellt (der Name eurer Gruppe).
 4. Bot starten:
    ```bash
    npm start
